@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8">
-  <title>會員註冊2</title>
+  <meta charset="UTF-8" />
+  <title>註冊頁面3</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <!-- Bootstrap for form styling (optional) -->
+  <!-- Bootstrap -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- bcryptjs -->
+  <script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
 </head>
 <body class="p-4">
   <div class="container">
@@ -16,7 +18,7 @@
         <input type="text" class="form-control" id="mid" required>
       </div>
       <div class="mb-3">
-        <label for="mpw" class="form-label">密碼（MPW）</label>
+        <label for="mpw" class="form-label">密碼</label>
         <input type="password" class="form-control" id="mpw" required>
       </div>
       <div class="mb-3">
@@ -24,53 +26,93 @@
         <input type="password" class="form-control" id="mpw2" required>
       </div>
       <div class="mb-3">
-        <label for="memail" class="form-label">電子郵件（MEMail）</label>
+        <label for="memail" class="form-label">電子郵件</label>
         <input type="email" class="form-control" id="memail" required>
       </div>
       <button type="submit" class="btn btn-primary">註冊</button>
     </form>
-    <div id="result" class="mt-3 text-success"></div>
+    <div id="result" class="mt-3"></div>
   </div>
 
-  <!-- Supabase CDN -->
   <script type="module">
-    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
-    const supabaseUrl = "https://axqdokunhkmcqbwcnita.supabase.co"; // 替換成您的 Supabase 專案網址
-    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF4cWRva3VuaGttY3Fid2NuaXRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM1MTM3ODcsImV4cCI6MjA1OTA4OTc4N30._vtPXq_GoLCjgqydyJe2AHXtiv1uZaPNRj_DyQNKjeo";             // 替換成您的 anon public API key
+    const supabaseUrl = 'https://xxxxx.supabase.co'; // ← 替換為您的 Supabase 專案網址
+    const supabaseKey = 'eyJhbGciOi...';              // ← 替換為您的 anon public API key
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    document.getElementById("registerForm").addEventListener("submit", async function (e) {
+    const form = document.getElementById("registerForm");
+    const resultDiv = document.getElementById("result");
+
+    form.addEventListener("submit", async function (e) {
       e.preventDefault();
 
       const mid = document.getElementById("mid").value.trim();
       const mpw = document.getElementById("mpw").value;
       const mpw2 = document.getElementById("mpw2").value;
       const memail = document.getElementById("memail").value.trim();
-      const resultDiv = document.getElementById("result");
 
+      resultDiv.className = "";
+
+      // ✅ 檢查密碼一致
       if (mpw !== mpw2) {
         resultDiv.textContent = "❗ 兩次輸入的密碼不一致";
-        resultDiv.classList.replace("text-success", "text-danger");
+        resultDiv.classList.add("text-danger");
         return;
       }
 
-      const { data, error } = await supabase
+      // 📧 檢查 email 格式
+      const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;
+      if (!emailRegex.test(memail)) {
+        resultDiv.textContent = "❗ Email 格式不正確";
+        resultDiv.classList.add("text-danger");
+        return;
+      }
+
+      // ✅ 檢查帳號是否存在
+      const { data: userCheck } = await supabase
+        .from("TblMember")
+        .select("MID")
+        .eq("MID", mid);
+
+      if (userCheck && userCheck.length > 0) {
+        resultDiv.textContent = "❗ 帳號已存在，請使用其他帳號";
+        resultDiv.classList.add("text-danger");
+        return;
+      }
+
+      // 📧 檢查 Email 是否已註冊
+      const { data: emailCheck } = await supabase
+        .from("TblMember")
+        .select("MEMail")
+        .eq("MEMail", memail);
+
+      if (emailCheck && emailCheck.length > 0) {
+        resultDiv.textContent = "❗ 此 Email 已註冊";
+        resultDiv.classList.add("text-danger");
+        return;
+      }
+
+      // 🔒 密碼加密
+      const hashedPassword = bcrypt.hashSync(mpw, 10);
+
+      // ✅ 寫入 Supabase
+      const { error } = await supabase
         .from("TblMember")
         .insert([{
           MID: mid,
-          MPW: mpw,
+          MPW: hashedPassword,
           MEMail: memail,
           MGroup: 1
         }]);
 
       if (error) {
-        resultDiv.textContent = `❌ 註冊失敗：${error.message}`;
-        resultDiv.classList.replace("text-success", "text-danger");
+        resultDiv.textContent = "❌ 註冊失敗：" + error.message;
+        resultDiv.classList.add("text-danger");
       } else {
         resultDiv.textContent = "✅ 註冊成功！";
-        resultDiv.classList.replace("text-danger", "text-success");
-        document.getElementById("registerForm").reset();
+        resultDiv.classList.add("text-success");
+        form.reset();
       }
     });
   </script>
